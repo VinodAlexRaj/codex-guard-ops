@@ -28,6 +28,11 @@ interface SiteRow {
   status: string
 }
 
+function firstRelated<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) return value[0] ?? null
+  return value ?? null
+}
+
 export default function ManagerSitesPage() {
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState('')
@@ -126,7 +131,8 @@ export default function ManagerSitesPage() {
 
           const activeShifts = shiftData.filter(sd => sd.site_id === site.id).length
           const supervisorAssignment = supData.find(ss => ss.site_id === site.id)
-          const supervisor = supervisorAssignment?.users?.full_name || 'Unassigned'
+          const supervisorUser = firstRelated(supervisorAssignment?.users)
+          const supervisor = supervisorUser?.full_name || 'Unassigned'
 
           return {
             code: site.site_code,

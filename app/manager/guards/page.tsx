@@ -27,6 +27,11 @@ interface GuardRow {
   joined: string
 }
 
+function firstRelated<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) return value[0] ?? null
+  return value ?? null
+}
+
 export default function ManagerGuardsPage() {
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState('')
@@ -127,9 +132,8 @@ export default function ManagerGuardsPage() {
 
           if (guardSiteIds.length > 0) {
             const supAssignment = supSiteData.find(ss => guardSiteIds.includes(ss.site_id))
-            if (supAssignment?.users) {
-              supervisor = supAssignment.users.full_name
-            }
+            const supervisorUser = firstRelated(supAssignment?.users)
+            supervisor = supervisorUser?.full_name ?? null
           }
 
           // Check if on leave today

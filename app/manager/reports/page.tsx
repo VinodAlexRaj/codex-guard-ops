@@ -25,6 +25,11 @@ interface SiteGap {
   rate: number
 }
 
+function firstRelated<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) return value[0] ?? null
+  return value ?? null
+}
+
 export default function ManagerReportsPage() {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<'coverage' | 'attendance' | 'leave'>('coverage')
@@ -148,7 +153,9 @@ export default function ManagerReportsPage() {
             const filled = siteCov.reduce((s, c) => s + c.assigned, 0)
             const gap = total - filled
             const rate = total > 0 ? Math.round((filled / total) * 100) : 0
-            const supervisor = (supSites || []).find(ss => ss.site_id === site.id)?.users?.full_name || 'Unassigned'
+            const supervisorAssignment = (supSites || []).find(ss => ss.site_id === site.id)
+            const supervisorUser = firstRelated(supervisorAssignment?.users)
+            const supervisor = supervisorUser?.full_name || 'Unassigned'
 
             return {
               code: site.site_code,

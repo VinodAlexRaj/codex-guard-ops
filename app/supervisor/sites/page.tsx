@@ -27,6 +27,11 @@ interface SiteRow {
   openSlots: number
 }
 
+function firstRelated<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) return value[0] ?? null
+  return value ?? null
+}
+
 export default function SupervisorSitesPage() {
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState('')
@@ -111,6 +116,7 @@ export default function SupervisorSitesPage() {
 
         // BUILD TABLE ROWS
         const rows: SiteRow[] = supervisorSites.map(ss => {
+          const site = firstRelated(ss.sites)
           const siteCoverage = coverage?.filter(c => c.site_id === ss.site_id) || []
           const activeShifts = shiftDefs?.filter(sd => sd.site_id === ss.site_id).length || 0
           const totalRequired = siteCoverage.reduce((sum, c) => sum + c.required_headcount, 0)
@@ -119,9 +125,9 @@ export default function SupervisorSitesPage() {
           const fillRate = totalRequired > 0 ? Math.round((totalAssigned / totalRequired) * 100) : 0
 
           return {
-            code: ss.sites.site_code,
-            name: ss.sites.name,
-            address: ss.sites.address,
+            code: site?.site_code || 'N/A',
+            name: site?.name || 'Unknown site',
+            address: site?.address || '',
             activeShifts,
             fillRate,
             openSlots,
