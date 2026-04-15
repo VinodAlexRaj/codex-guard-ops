@@ -61,14 +61,20 @@ function firstString(fields: Record<string, AirtableFieldValue>, keys: string[])
   return null
 }
 
-function toActiveStatus(value: AirtableFieldValue) {
+function firstField(fields: Record<string, AirtableFieldValue>, keys: string[]) {
+  for (const key of keys) {
+    if (fields[key] !== undefined) return fields[key]
+  }
+  return undefined
+}
+
+function toTerminatedStatus(value: AirtableFieldValue) {
   if (typeof value === 'boolean') return value
-  if (typeof value !== 'string') return null
+  if (typeof value !== 'string') return false
 
   const normalized = value.trim().toLowerCase()
-  if (['active', 'current', 'yes', 'true', '1'].includes(normalized)) return true
-  if (['inactive', 'terminated', 'resigned', 'no', 'false', '0'].includes(normalized)) return false
-  return null
+  if (['terminated', 'inactive', 'resigned', 'yes', 'true', '1'].includes(normalized)) return true
+  return false
 }
 
 function airtableErrorMessage(payload: AirtableListResponse, status: number) {
@@ -103,7 +109,7 @@ export function mapAirtableEmployeeRole(role: string | null | undefined): Airtab
 
 function normalizeEmployee(record: AirtableRecord): AirtableEmployee {
   const fields = record.fields
-  const status = firstString(fields, ['Status', 'Employment Status', 'Employee Status', 'status'])
+  const isTerminated = toTerminatedStatus(firstField(fields, ['Emp Termination', 'Employee Termination', 'Termination']))
   const role = firstString(fields, ['Role', 'Designation', 'Position', 'Job Title', 'external_role'])
 
   return {
@@ -119,10 +125,10 @@ function normalizeEmployee(record: AirtableRecord): AirtableEmployee {
     fullName: firstString(fields, ['Full Name', 'Employee Name', 'Name', 'full_name']),
     role,
     mappedRole: mapAirtableEmployeeRole(role),
-    status,
-    isActive: toActiveStatus(fields.Active ?? fields.active ?? status),
-    email: firstString(fields, ['Email', 'Work Email', 'email']),
-    phone: firstString(fields, ['Phone', 'Mobile', 'Contact Number', 'phone']),
+    status: isTerminated ? 'Terminated' : 'Active',
+    isActive: !isTerminated,
+    email: firstString(fields, ['Emp Email ID', 'Email', 'Work Email', 'email']),
+    phone: firstString(fields, ['Local Mobile', 'Phone', 'Mobile', 'Contact Number', 'phone']),
     createdTime: record.createdTime,
     fields,
   }
@@ -139,6 +145,9 @@ export async function fetchAllAirtableEmployees() {
     ?.split(',')
     .map((field) => field.trim())
     .filter(Boolean)
+  if (fields && !fields.includes('Emp Termination')) fields.push('Emp Termination')
+  if (fields && !fields.includes('Emp Email ID')) fields.push('Emp Email ID')
+  if (fields && !fields.includes('Local Mobile')) fields.push('Local Mobile')
 
   const records: AirtableRecord[] = []
   let offset: string | undefined

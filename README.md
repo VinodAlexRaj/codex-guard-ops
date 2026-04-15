@@ -35,6 +35,7 @@ GET /api/airtable/employees
 Set these environment variables locally and in Vercel:
 
 ```txt
+SUPABASE_SERVICE_ROLE_KEY=...
 AIRTABLE_API_KEY=pat...
 AIRTABLE_BASE_ID=app...
 AIRTABLE_EMPLOYEES_TABLE_ID=tbl...
@@ -45,12 +46,20 @@ Optional variables:
 
 ```txt
 AIRTABLE_EMPLOYEES_VIEW=Active Employees
-AIRTABLE_EMPLOYEES_FIELDS=Employee Code,Full Name,Role,Status,Email,Phone
+AIRTABLE_EMPLOYEES_FIELDS=Employee Code,Full Name,Role,Emp Termination,Emp Email ID,Local Mobile
 ```
 
 Prefer `AIRTABLE_EMPLOYEES_TABLE_ID` when possible because Airtable table IDs are stable. If it is not set, the API falls back to `AIRTABLE_EMPLOYEES_TABLE`, which must match the table name exactly. The Airtable token must be a Personal Access Token with `data.records:read` and access to the configured base.
 
-The API paginates through Airtable until every employee record is returned. It keeps the raw Airtable `fields` object and also normalizes common fields like `employeeCode`, `fullName`, `role`, `status`, `email`, and `phone`.
+The API paginates through Airtable until every employee record is returned. It keeps the raw Airtable `fields` object and also normalizes common fields like `employeeCode`, `fullName`, `role`, `status`, `email`, and `phone`. Email is pulled from `Emp Email ID`, phone is pulled from `Local Mobile`, and active status comes from Airtable's `Emp Termination` checkbox: unchecked means active, checked means terminated/not active.
+
+Managers can sync reviewed Airtable employees into `public.users` from the Airtable Employees page. The sync route is:
+
+```txt
+POST /api/airtable/employees/sync
+```
+
+The sync uses `SUPABASE_SERVICE_ROLE_KEY` on the server, updates existing users by `external_employee_code`, inserts missing users, and skips Airtable records with no employee code, no full name, or an unmapped role. The sync writes `full_name`, `external_employee_code`, `external_role`, `is_active`, `email`, and `phone`.
 
 ## Learn More
 

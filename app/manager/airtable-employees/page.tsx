@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AppTopBar } from '@/components/app-top-bar'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import {
@@ -36,6 +37,19 @@ interface AirtableEmployeesResponse {
   error?: string
 }
 
+interface SyncResult {
+  totalFromAirtable: number
+  synced: number
+  inserted: number
+  updated: number
+  skipped: {
+    missingEmployeeCode: number
+    missingFullName: number
+    unmappedRole: number
+  }
+  error?: string
+}
+
 const ROLE_FILTERS = ['All', 'Guard', 'Supervisor', 'Manager', 'Unmapped'] as const
 
 function mappedRoleLabel(role: MappedRole) {
@@ -52,6 +66,66 @@ function mappedRoleBadgeClass(role: MappedRole) {
   return 'bg-red-100 text-red-700'
 }
 
+interface EmployeeTableProps {
+  employees: AirtableEmployeePreview[]
+  emptyMessage: string
+}
+
+function EmployeeTable({ employees, emptyMessage }: EmployeeTableProps) {
+  return (
+    <Card className="overflow-hidden border-slate-200">
+      {employees.length === 0 ? (
+        <div className="p-8 text-center text-slate-600">{emptyMessage}</div>
+      ) : (
+        <Table>
+          <TableHeader className="bg-slate-50">
+            <TableRow>
+              <TableHead className="px-4 font-semibold text-slate-700">Code</TableHead>
+              <TableHead className="px-4 font-semibold text-slate-700">Name</TableHead>
+              <TableHead className="px-4 font-semibold text-slate-700">Airtable Role</TableHead>
+              <TableHead className="px-4 font-semibold text-slate-700">Mapped Role</TableHead>
+              <TableHead className="px-4 font-semibold text-slate-700">Status</TableHead>
+              <TableHead className="px-4 font-semibold text-slate-700">Email</TableHead>
+              <TableHead className="px-4 font-semibold text-slate-700">Phone</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {employees.map((employee) => (
+              <TableRow key={employee.airtableId} className="border-slate-200 hover:bg-slate-50">
+                <TableCell className="px-4 font-mono text-sm text-slate-900">
+                  {employee.employeeCode || 'N/A'}
+                </TableCell>
+                <TableCell className="px-4 font-medium text-slate-900">
+                  {employee.fullName || 'Unnamed employee'}
+                </TableCell>
+                <TableCell className="px-4 text-slate-700">{employee.role || 'N/A'}</TableCell>
+                <TableCell className="px-4">
+                  <Badge className={`${mappedRoleBadgeClass(employee.mappedRole)} border-0`}>
+                    {mappedRoleLabel(employee.mappedRole)}
+                  </Badge>
+                </TableCell>
+                <TableCell className="px-4">
+                  <Badge
+                    className={
+                      employee.isActive === false
+                        ? 'border-0 bg-slate-200 text-slate-700'
+                        : 'border-0 bg-green-100 text-green-700'
+                    }
+                  >
+                    {employee.isActive === false ? 'Terminated' : 'Active'}
+                  </Badge>
+                </TableCell>
+                <TableCell className="px-4 text-slate-700">{employee.email || 'N/A'}</TableCell>
+                <TableCell className="px-4 text-slate-700">{employee.phone || 'N/A'}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+    </Card>
+  )
+}
+
 export default function ManagerAirtableEmployeesPage() {
   const [dateStr] = useState(() => formatHeaderDate())
   const [managerName, setManagerName] = useState('User')
@@ -60,6 +134,9 @@ export default function ManagerAirtableEmployeesPage() {
   const [error, setError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState<(typeof ROLE_FILTERS)[number]>('All')
+  const [syncing, setSyncing] = useState(false)
+  const [syncResult, setSyncResult] = useState<SyncResult | null>(null)
+  const [syncError, setSyncError] = useState('')
 
   useEffect(() => {
     const fetchPageData = async () => {
@@ -99,6 +176,29 @@ export default function ManagerAirtableEmployeesPage() {
     fetchPageData()
   }, [])
 
+  const handleSyncToSupabase = async () => {
+    try {
+      setSyncing(true)
+      setSyncError('')
+      setSyncResult(null)
+
+      const response = await fetch('/api/airtable/employees/sync', {
+        method: 'POST',
+      })
+      const payload = (await response.json()) as SyncResult
+
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to sync Airtable employees')
+      }
+
+      setSyncResult(payload)
+    } catch (syncFetchError) {
+      setSyncError(syncFetchError instanceof Error ? syncFetchError.message : 'Failed to sync Airtable employees')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   const stats = useMemo(() => {
     const byRole = {
       guard: employees.filter((employee) => employee.mappedRole === 'guard').length,
@@ -106,9 +206,13 @@ export default function ManagerAirtableEmployeesPage() {
       manager: employees.filter((employee) => employee.mappedRole === 'manager').length,
       unmapped: employees.filter((employee) => employee.mappedRole === 'unmapped').length,
     }
+    const activeCount = employees.filter((employee) => employee.isActive !== false).length
+    const terminatedCount = employees.filter((employee) => employee.isActive === false).length
 
     return [
       { label: 'Total employees', value: employees.length, className: 'text-slate-900' },
+      { label: 'Active', value: activeCount, className: 'text-green-700' },
+      { label: 'Terminated', value: terminatedCount, className: 'text-slate-700' },
       { label: 'Guards', value: byRole.guard, className: 'text-teal-700' },
       { label: 'Supervisors', value: byRole.supervisor, className: 'text-blue-700' },
       { label: 'Managers', value: byRole.manager, className: 'text-purple-700' },
@@ -134,6 +238,15 @@ export default function ManagerAirtableEmployeesPage() {
     })
   }, [employees, roleFilter, searchQuery])
 
+  const activeEmployees = useMemo(
+    () => filteredEmployees.filter((employee) => employee.isActive !== false),
+    [filteredEmployees],
+  )
+  const inactiveEmployees = useMemo(
+    () => filteredEmployees.filter((employee) => employee.isActive === false),
+    [filteredEmployees],
+  )
+
   return (
     <>
       <AppTopBar date={dateStr} name={managerName} role="Manager" />
@@ -150,15 +263,39 @@ export default function ManagerAirtableEmployeesPage() {
               Supervisor, Manager, or Unmapped.
             </p>
           </div>
-          <Input
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Search name, code, role, or email..."
-            className="w-full lg:w-80"
-          />
+          <div className="flex w-full flex-col gap-3 lg:w-auto lg:flex-row">
+            <Input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search name, code, role, or email..."
+              className="w-full lg:w-80"
+            />
+            <Button
+              type="button"
+              onClick={handleSyncToSupabase}
+              disabled={loading || syncing || employees.length === 0}
+              className="bg-teal-700 hover:bg-teal-800"
+            >
+              {syncing ? 'Syncing...' : 'Sync to Supabase'}
+            </Button>
+          </div>
         </div>
 
-        <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {syncResult && (
+          <Card className="mb-6 border-green-200 bg-green-50 p-4 text-sm text-green-800">
+            Synced {syncResult.synced} employees: {syncResult.inserted} inserted, {syncResult.updated} updated.
+            Skipped {syncResult.skipped.missingEmployeeCode + syncResult.skipped.missingFullName + syncResult.skipped.unmappedRole}
+            {' '}records.
+          </Card>
+        )}
+
+        {syncError && (
+          <Card className="mb-6 border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {syncError}
+          </Card>
+        )}
+
+        <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {stats.map((stat) => (
             <Card key={stat.label} className="border-slate-200 p-4">
               <p className="text-xs text-slate-600">{stat.label}</p>
@@ -184,64 +321,49 @@ export default function ManagerAirtableEmployeesPage() {
           ))}
         </div>
 
-        <Card className="overflow-hidden border-slate-200">
-          {loading ? (
+        {loading ? (
+          <Card className="overflow-hidden border-slate-200">
             <div className="p-8 text-center text-slate-600">Loading Airtable employees...</div>
-          ) : error ? (
+          </Card>
+        ) : error ? (
+          <Card className="overflow-hidden border-slate-200">
             <div className="p-8 text-center text-red-600">{error}</div>
-          ) : filteredEmployees.length === 0 ? (
-            <div className="p-8 text-center text-slate-600">No employees match the current filters.</div>
-          ) : (
-            <Table>
-              <TableHeader className="bg-slate-50">
-                <TableRow>
-                  <TableHead className="px-4 font-semibold text-slate-700">Code</TableHead>
-                  <TableHead className="px-4 font-semibold text-slate-700">Name</TableHead>
-                  <TableHead className="px-4 font-semibold text-slate-700">Airtable Role</TableHead>
-                  <TableHead className="px-4 font-semibold text-slate-700">Mapped Role</TableHead>
-                  <TableHead className="px-4 font-semibold text-slate-700">Status</TableHead>
-                  <TableHead className="px-4 font-semibold text-slate-700">Email</TableHead>
-                  <TableHead className="px-4 font-semibold text-slate-700">Phone</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredEmployees.map((employee) => (
-                  <TableRow key={employee.airtableId} className="border-slate-200 hover:bg-slate-50">
-                    <TableCell className="px-4 font-mono text-sm text-slate-900">
-                      {employee.employeeCode || 'N/A'}
-                    </TableCell>
-                    <TableCell className="px-4 font-medium text-slate-900">
-                      {employee.fullName || 'Unnamed employee'}
-                    </TableCell>
-                    <TableCell className="px-4 text-slate-700">{employee.role || 'N/A'}</TableCell>
-                    <TableCell className="px-4">
-                      <Badge className={`${mappedRoleBadgeClass(employee.mappedRole)} border-0`}>
-                        {mappedRoleLabel(employee.mappedRole)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="px-4">
-                      <Badge
-                        className={
-                          employee.isActive === false
-                            ? 'border-0 bg-slate-200 text-slate-700'
-                            : 'border-0 bg-green-100 text-green-700'
-                        }
-                      >
-                        {employee.status || (employee.isActive === false ? 'Inactive' : 'Active')}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="px-4 text-slate-700">{employee.email || 'N/A'}</TableCell>
-                    <TableCell className="px-4 text-slate-700">{employee.phone || 'N/A'}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </Card>
+          </Card>
+        ) : (
+          <>
+            <section>
+              <div className="mb-3 flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">Active Employees</h2>
+                  <p className="text-sm text-slate-600">Emp Termination is not ticked in Airtable.</p>
+                </div>
+                <Badge className="border-0 bg-green-100 text-green-700">{activeEmployees.length} active</Badge>
+              </div>
+              <EmployeeTable
+                employees={activeEmployees}
+                emptyMessage="No active employees match the current filters."
+              />
+            </section>
 
-        <p className="mt-4 text-sm text-slate-600">
-          Showing {filteredEmployees.length} of {employees.length} Airtable employees.
-        </p>
+            <section className="mt-8">
+              <div className="mb-3 flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">Not Active Employees</h2>
+                  <p className="text-sm text-slate-600">Emp Termination is ticked in Airtable.</p>
+                </div>
+                <Badge className="border-0 bg-slate-200 text-slate-700">{inactiveEmployees.length} not active</Badge>
+              </div>
+              <EmployeeTable
+                employees={inactiveEmployees}
+                emptyMessage="No not-active employees match the current filters."
+              />
+            </section>
+
+            <p className="mt-4 text-sm text-slate-600">
+              Showing {filteredEmployees.length} of {employees.length} Airtable employees.
+            </p>
+          </>
+        )}
       </div>
     </>
   )
