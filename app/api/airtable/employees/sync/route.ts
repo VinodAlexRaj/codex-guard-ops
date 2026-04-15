@@ -13,21 +13,26 @@ type UserSyncPayload = {
   external_employee_code: string
   external_role: string | null
   is_active: boolean
+  last_synced_at: string
+  updated_at: string
   email?: string | null
-  phone?: string | null
+  phone?: string
 }
 
 function toUserPayload(employee: SyncableEmployee, includeContactFields: boolean): UserSyncPayload {
+  const now = new Date().toISOString()
   const payload: UserSyncPayload = {
     full_name: employee.fullName,
     external_employee_code: employee.employeeCode,
     external_role: employee.role,
     is_active: employee.isActive !== false,
+    last_synced_at: now,
+    updated_at: now,
   }
 
   if (includeContactFields) {
     payload.email = employee.email
-    payload.phone = employee.phone
+    payload.phone = employee.phone || ''
   }
 
   return payload
@@ -130,7 +135,7 @@ export async function POST() {
 
       if (mutationError && includeContactFields && isMissingColumnError(mutationError.message)) {
         includeContactFields = false
-        warnings.push('public.users is missing email and/or phone columns, so contact fields were not written.')
+        warnings.push('users is missing email and/or phone columns, so contact fields were not written.')
 
         const fallbackPayload = toUserPayload(employee, false)
         const fallbackMutation = existingUser

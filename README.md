@@ -53,13 +53,13 @@ Prefer `AIRTABLE_EMPLOYEES_TABLE_ID` when possible because Airtable table IDs ar
 
 The API paginates through Airtable until every employee record is returned. It keeps the raw Airtable `fields` object and also normalizes common fields like `employeeCode`, `fullName`, `role`, `status`, `email`, and `phone`. Email is pulled from `Emp Email ID`, phone is pulled from `Local Mobile`, and active status comes from Airtable's `Emp Termination` checkbox: unchecked means active, checked means terminated/not active.
 
-Managers can sync reviewed Airtable employees into `public.users` from the Airtable Employees page. The sync route is:
+Managers can sync reviewed Airtable employees into the `users` table from the Airtable Employees page. The sync route is:
 
 ```txt
 POST /api/airtable/employees/sync
 ```
 
-The sync uses `SUPABASE_SERVICE_ROLE_KEY` on the server, updates existing users by `external_employee_code`, inserts missing users, and skips Airtable records with no employee code, no full name, or an unmapped role. The sync writes `full_name`, `external_employee_code`, `external_role`, and `is_active`. It also writes `email` and `phone` when those optional columns exist in `public.users`; otherwise it continues the sync and returns a warning.
+The sync uses `SUPABASE_SERVICE_ROLE_KEY` on the server, updates existing users by `external_employee_code`, inserts missing users, and skips Airtable records with no employee code, no full name, or an unmapped role. The sync writes `full_name`, `external_employee_code`, `external_role`, `is_active`, `last_synced_at`, and `updated_at`. It also writes `email` and `phone`; if either column is missing, it continues the sync and returns a warning. Because `phone` is non-nullable in `users`, employees without `Local Mobile` are synced with an empty phone string.
 
 ## Learn More
 
