@@ -307,6 +307,7 @@ export default function AttendancePage() {
     el: 'EL',
     ul: 'UL',
   }
+  const leaveStatuses = new Set(['mc', 'al', 'el', 'ul'])
 
   const filteredData = activeShift
     ? attendanceData.filter((row) => {
@@ -320,9 +321,7 @@ export default function AttendancePage() {
   const onTimeCount = filteredData.filter((r) => r.status === 'on_time').length
   const lateCount = filteredData.filter((r) => r.status === 'late').length
   const absentCount = filteredData.filter((r) => r.status === 'absent').length
-  const onLeaveCount = filteredData.filter((r) =>
-    ['mc', 'al', 'el', 'ul'].includes(r.status)
-  ).length
+  const onLeaveCount = filteredData.filter((r) => r.status !== null && leaveStatuses.has(r.status)).length
   const pendingStatusCount = filteredData.filter((r) => !r.status).length
   const withOTCount = filteredData.filter((r) => r.otMins > 0).length
 
