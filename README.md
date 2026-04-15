@@ -59,7 +59,7 @@ Managers can sync reviewed Airtable employees into `public.users` from the Airta
 POST /api/airtable/employees/sync
 ```
 
-The sync uses `SUPABASE_SERVICE_ROLE_KEY` on the server, updates existing users by `external_employee_code`, inserts missing users, and skips Airtable records with no employee code, no full name, or an unmapped role. The sync writes `full_name`, `external_employee_code`, `external_role`, `is_active`, `email`, and `phone`.
+The sync uses `SUPABASE_SERVICE_ROLE_KEY` on the server, updates existing users by `external_employee_code`, inserts missing users, and skips Airtable records with no employee code, no full name, or an unmapped role. The sync writes `full_name`, `external_employee_code`, `external_role`, and `is_active`. It also writes `email` and `phone` when those optional columns exist in `public.users`; otherwise it continues the sync and returns a warning.
 
 ## Learn More
 

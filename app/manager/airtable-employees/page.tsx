@@ -47,6 +47,7 @@ interface SyncResult {
     missingFullName: number
     unmappedRole: number
   }
+  warnings?: string[]
   error?: string
 }
 
@@ -283,9 +284,16 @@ export default function ManagerAirtableEmployeesPage() {
 
         {syncResult && (
           <Card className="mb-6 border-green-200 bg-green-50 p-4 text-sm text-green-800">
-            Synced {syncResult.synced} employees: {syncResult.inserted} inserted, {syncResult.updated} updated.
-            Skipped {syncResult.skipped.missingEmployeeCode + syncResult.skipped.missingFullName + syncResult.skipped.unmappedRole}
-            {' '}records.
+            <p>
+              Synced {syncResult.synced} employees: {syncResult.inserted} inserted, {syncResult.updated} updated.
+              Skipped {syncResult.skipped.missingEmployeeCode + syncResult.skipped.missingFullName + syncResult.skipped.unmappedRole}
+              {' '}records.
+            </p>
+            {syncResult.warnings?.map((warning) => (
+              <p key={warning} className="mt-2 text-amber-700">
+                {warning}
+              </p>
+            ))}
           </Card>
         )}
 

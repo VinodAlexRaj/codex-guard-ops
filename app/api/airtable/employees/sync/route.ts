@@ -8,15 +8,37 @@ type SyncableEmployee = AirtableEmployee & {
   fullName: string
 }
 
-function toUserPayload(employee: SyncableEmployee) {
-  return {
+type UserSyncPayload = {
+  full_name: string
+  external_employee_code: string
+  external_role: string | null
+  is_active: boolean
+  email?: string | null
+  phone?: string | null
+}
+
+function toUserPayload(employee: SyncableEmployee, includeContactFields: boolean): UserSyncPayload {
+  const payload: UserSyncPayload = {
     full_name: employee.fullName,
     external_employee_code: employee.employeeCode,
     external_role: employee.role,
     is_active: employee.isActive !== false,
-    email: employee.email,
-    phone: employee.phone,
   }
+
+  if (includeContactFields) {
+    payload.email = employee.email
+    payload.phone = employee.phone
+  }
+
+  return payload
+}
+
+function isMissingColumnError(errorMessage: string) {
+  return (
+    errorMessage.includes("Could not find the 'email' column") ||
+    errorMessage.includes("Could not find the 'phone' column") ||
+    errorMessage.includes('schema cache')
+  )
 }
 
 async function requireManager() {
@@ -81,9 +103,10 @@ export async function POST() {
     const supabaseAdmin = createAdminClient()
     let inserted = 0
     let updated = 0
+    let includeContactFields = true
+    const warnings: string[] = []
 
     for (const employee of syncableEmployees) {
-      const payload = toUserPayload(employee)
       const { data: existingUser, error: existingError } = await supabaseAdmin
         .from('users')
         .select('id')
@@ -98,11 +121,25 @@ export async function POST() {
         )
       }
 
+      const payload = toUserPayload(employee, includeContactFields)
       const mutation = existingUser
         ? supabaseAdmin.from('users').update(payload).eq('id', existingUser.id)
         : supabaseAdmin.from('users').insert(payload)
 
-      const { error: mutationError } = await mutation
+      let { error: mutationError } = await mutation
+
+      if (mutationError && includeContactFields && isMissingColumnError(mutationError.message)) {
+        includeContactFields = false
+        warnings.push('public.users is missing email and/or phone columns, so contact fields were not written.')
+
+        const fallbackPayload = toUserPayload(employee, false)
+        const fallbackMutation = existingUser
+          ? supabaseAdmin.from('users').update(fallbackPayload).eq('id', existingUser.id)
+          : supabaseAdmin.from('users').insert(fallbackPayload)
+
+        const { error: fallbackError } = await fallbackMutation
+        mutationError = fallbackError
+      }
 
       if (mutationError) {
         return NextResponse.json(
@@ -124,6 +161,7 @@ export async function POST() {
       inserted,
       updated,
       skipped,
+      warnings: [...new Set(warnings)],
     })
   } catch (error) {
     return NextResponse.json(
