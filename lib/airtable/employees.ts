@@ -27,6 +27,7 @@ export interface AirtableEmployee {
   employeeCode: string | null
   fullName: string | null
   role: string | null
+  mappedRole: 'guard' | 'supervisor' | 'manager' | 'unmapped'
   status: string | null
   isActive: boolean | null
   email: string | null
@@ -60,9 +61,21 @@ function toActiveStatus(value: AirtableFieldValue) {
   return null
 }
 
+export function mapAirtableEmployeeRole(role: string | null | undefined): AirtableEmployee['mappedRole'] {
+  const normalized = role?.trim().toUpperCase()
+
+  if (!normalized) return 'unmapped'
+  if (['SECURITY OFFICER', 'NEPALESE SECURITY OFFICER'].includes(normalized)) return 'guard'
+  if (normalized === 'OPERATIONS EXECUTIVE') return 'supervisor'
+  if (['HR & ADMIN EXECUTIVE', 'MANAGER', 'EXECUTIVE DIRECTOR'].includes(normalized)) return 'manager'
+
+  return 'unmapped'
+}
+
 function normalizeEmployee(record: AirtableRecord): AirtableEmployee {
   const fields = record.fields
   const status = firstString(fields, ['Status', 'Employment Status', 'Employee Status', 'status'])
+  const role = firstString(fields, ['Role', 'Designation', 'Position', 'Job Title', 'external_role'])
 
   return {
     airtableId: record.id,
@@ -75,7 +88,8 @@ function normalizeEmployee(record: AirtableRecord): AirtableEmployee {
       'external_employee_code',
     ]),
     fullName: firstString(fields, ['Full Name', 'Employee Name', 'Name', 'full_name']),
-    role: firstString(fields, ['Role', 'Designation', 'Position', 'Job Title', 'external_role']),
+    role,
+    mappedRole: mapAirtableEmployeeRole(role),
     status,
     isActive: toActiveStatus(fields.Active ?? fields.active ?? status),
     email: firstString(fields, ['Email', 'Work Email', 'email']),

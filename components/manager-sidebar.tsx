@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { LayoutDashboard, Building2, Users, CalendarClock, ShieldCheck, CalendarOff, BarChart3, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { LayoutDashboard, Building2, Users, CalendarClock, ShieldCheck, CalendarOff, BarChart3, Database, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useSidebar } from '@/components/sidebar-context'
 
@@ -12,6 +12,7 @@ const navItems = [
   { label: 'Supervisors', href: '/manager/supervisors', icon: Users },
   { label: 'Shift Setup', href: '/manager/shifts', icon: CalendarClock },
   { label: 'Guard Management', href: '/manager/guards', icon: ShieldCheck },
+  { label: 'Airtable Employees', href: '/manager/airtable-employees', icon: Database },
   { label: 'Leave Management', href: '/manager/leaves', icon: CalendarOff },
   { label: 'Reports', href: '/manager/reports', icon: BarChart3 },
 ]
