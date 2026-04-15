@@ -22,6 +22,16 @@ interface AirtableListResponse {
   }
 }
 
+export class AirtableRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message)
+    this.name = 'AirtableRequestError'
+  }
+}
+
 export interface AirtableEmployee {
   airtableId: string
   employeeCode: string | null
@@ -59,6 +69,25 @@ function toActiveStatus(value: AirtableFieldValue) {
   if (['active', 'current', 'yes', 'true', '1'].includes(normalized)) return true
   if (['inactive', 'terminated', 'resigned', 'no', 'false', '0'].includes(normalized)) return false
   return null
+}
+
+function airtableErrorMessage(payload: AirtableListResponse, status: number) {
+  const type = payload.error?.type
+  const message = payload.error?.message || `Airtable request failed with ${status}`
+
+  if (
+    type === 'INVALID_PERMISSIONS_OR_MODEL_NOT_FOUND' ||
+    message.toLowerCase().includes('invalid permissions')
+  ) {
+    return [
+      'Airtable cannot read the configured employee table.',
+      'Check that AIRTABLE_API_KEY is a Personal Access Token with data.records:read,',
+      'that the token has access to AIRTABLE_BASE_ID,',
+      'and that AIRTABLE_EMPLOYEES_TABLE_ID or AIRTABLE_EMPLOYEES_TABLE matches the employee table exactly.',
+    ].join(' ')
+  }
+
+  return message
 }
 
 export function mapAirtableEmployeeRole(role: string | null | undefined): AirtableEmployee['mappedRole'] {
@@ -104,7 +133,7 @@ export async function fetchAllAirtableEmployees() {
   if (!token) throw new Error('Missing AIRTABLE_API_KEY or AIRTABLE_TOKEN')
 
   const baseId = requiredEnv('AIRTABLE_BASE_ID')
-  const tableName = process.env.AIRTABLE_EMPLOYEES_TABLE || 'Employees'
+  const tableIdentifier = process.env.AIRTABLE_EMPLOYEES_TABLE_ID || process.env.AIRTABLE_EMPLOYEES_TABLE || 'Employees'
   const view = process.env.AIRTABLE_EMPLOYEES_VIEW
   const fields = process.env.AIRTABLE_EMPLOYEES_FIELDS
     ?.split(',')
@@ -115,7 +144,7 @@ export async function fetchAllAirtableEmployees() {
   let offset: string | undefined
 
   do {
-    const url = new URL(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`)
+    const url = new URL(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableIdentifier)}`)
     url.searchParams.set('pageSize', '100')
     if (offset) url.searchParams.set('offset', offset)
     if (view) url.searchParams.set('view', view)
@@ -131,7 +160,7 @@ export async function fetchAllAirtableEmployees() {
     const payload = (await response.json()) as AirtableListResponse
 
     if (!response.ok) {
-      throw new Error(payload.error?.message || `Airtable request failed with ${response.status}`)
+      throw new AirtableRequestError(airtableErrorMessage(payload, response.status), response.status)
     }
 
     records.push(...(payload.records || []))

@@ -37,6 +37,7 @@ Set these environment variables locally and in Vercel:
 ```txt
 AIRTABLE_API_KEY=pat...
 AIRTABLE_BASE_ID=app...
+AIRTABLE_EMPLOYEES_TABLE_ID=tbl...
 AIRTABLE_EMPLOYEES_TABLE=Employees
 ```
 
@@ -46,6 +47,8 @@ Optional variables:
 AIRTABLE_EMPLOYEES_VIEW=Active Employees
 AIRTABLE_EMPLOYEES_FIELDS=Employee Code,Full Name,Role,Status,Email,Phone
 ```
+
+Prefer `AIRTABLE_EMPLOYEES_TABLE_ID` when possible because Airtable table IDs are stable. If it is not set, the API falls back to `AIRTABLE_EMPLOYEES_TABLE`, which must match the table name exactly. The Airtable token must be a Personal Access Token with `data.records:read` and access to the configured base.
 
 The API paginates through Airtable until every employee record is returned. It keeps the raw Airtable `fields` object and also normalizes common fields like `employeeCode`, `fullName`, `role`, `status`, `email`, and `phone`.
 

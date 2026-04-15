@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { fetchAllAirtableEmployees } from '@/lib/airtable/employees'
+import { AirtableRequestError, fetchAllAirtableEmployees } from '@/lib/airtable/employees'
 import { createClient } from '@/lib/supabase/server'
 
 export async function GET() {
@@ -31,6 +31,7 @@ export async function GET() {
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to fetch employees'
-    return NextResponse.json({ error: message }, { status: 500 })
+    const status = error instanceof AirtableRequestError ? error.status : 500
+    return NextResponse.json({ error: message }, { status })
   }
 }
