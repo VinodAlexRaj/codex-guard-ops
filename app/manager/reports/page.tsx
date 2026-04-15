@@ -455,14 +455,14 @@ export default function ManagerReportsPage() {
                           <Badge
                             variant="secondary"
                             className={`${
-                              parseInt(site.rate) >= 80
+                              site.rate >= 80
                                 ? 'bg-green-100 text-green-700'
-                                : parseInt(site.rate) >= 50
+                                : site.rate >= 50
                                   ? 'bg-amber-100 text-amber-700'
                                   : 'bg-red-100 text-red-700'
                             }`}
                           >
-                            {site.rate}
+                            {site.rate}%
                           </Badge>
                         </td>
                       </tr>
