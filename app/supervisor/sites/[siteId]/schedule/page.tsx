@@ -945,11 +945,11 @@ export default function SchedulePage() {
                             const dateStr = selectedSlot ? getLocalDateString(new Date(selectedSlot.shift_date)) : null
                             
                             // Check if guard is on approved leave on this date
-                            const isOnLeave = dateStr && guardLeave.some(leave => {
+                            const isOnLeave = Boolean(dateStr && guardLeave.some(leave => {
                               const leaveStart = getLocalDateString(new Date(leave.leave_start_date))
                               const leaveEnd = getLocalDateString(new Date(leave.leave_end_date))
                               return guard.id === leave.guard_id && dateStr >= leaveStart && dateStr <= leaveEnd
-                            })
+                            }))
                             
                             // Check if guard is assigned to a DIFFERENT slot today
                             const assignmentOnOtherSlotToday = dateStr && assignments.find(a => {
