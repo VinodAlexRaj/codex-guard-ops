@@ -1,41 +1,79 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { LayoutDashboard, MapPin, CalendarDays, ClipboardList, ShieldCheck, CalendarOff, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useSidebar } from '@/components/sidebar-context'
+import { supabase } from '@/lib/supabase/client'
 
-const navItems = [
-  { label: 'Overview', href: '/supervisor/overview', icon: LayoutDashboard },
-  { label: 'My Sites', href: '/supervisor/sites', icon: MapPin },
-  { label: 'Schedule', href: '/supervisor/sites/KLSNT01/schedule', icon: CalendarDays },
-  { label: 'Attendance', href: '/supervisor/sites/KLSNT01/attendance', icon: ClipboardList },
-  { label: 'Guards', href: '/supervisor/guards', icon: ShieldCheck },
-  { label: 'Leaves', href: '/supervisor/leaves', icon: CalendarOff },
-]
+function firstRelated<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) return value[0] ?? null
+  return value ?? null
+}
 
 export default function SupervisorSidebar() {
   const pathname = usePathname()
   const { isCollapsed, toggle } = useSidebar()
+  const [firstAssignedSiteCode, setFirstAssignedSiteCode] = useState<string | null>(null)
 
-  const isActive = (href: string) => {
-    if (href === '/supervisor/overview') {
+  useEffect(() => {
+    const loadFirstAssignedSite = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) return
+
+      const { data: assignments } = await supabase
+        .from('supervisor_sites')
+        .select('sites(site_code)')
+        .eq('supervisor_id', user.id)
+        .limit(1)
+
+      const site = firstRelated(assignments?.[0]?.sites)
+      setFirstAssignedSiteCode(site?.site_code ?? null)
+    }
+
+    loadFirstAssignedSite()
+  }, [])
+
+  const currentSiteCode = pathname.match(/^\/supervisor\/sites\/([^/]+)/)?.[1] ?? null
+  const siteCodeForLinks = currentSiteCode || firstAssignedSiteCode
+  const scheduleHref = siteCodeForLinks
+    ? `/supervisor/sites/${siteCodeForLinks}/schedule`
+    : '/supervisor/sites'
+  const attendanceHref = siteCodeForLinks
+    ? `/supervisor/sites/${siteCodeForLinks}/attendance`
+    : '/supervisor/sites'
+
+  const navItems = [
+    { label: 'Overview', href: '/supervisor/overview', icon: LayoutDashboard },
+    { label: 'My Sites', href: '/supervisor/sites', icon: MapPin },
+    { label: 'Schedule', href: scheduleHref, icon: CalendarDays },
+    { label: 'Attendance', href: attendanceHref, icon: ClipboardList },
+    { label: 'Guards', href: '/supervisor/guards', icon: ShieldCheck },
+    { label: 'Leaves', href: '/supervisor/leaves', icon: CalendarOff },
+  ]
+
+  const isActive = (item: (typeof navItems)[number]) => {
+    if (item.label === 'Overview') {
       return pathname === '/supervisor/overview'
     }
-    if (href === '/supervisor/sites') {
+    if (item.label === 'My Sites') {
       return pathname.startsWith('/supervisor/sites') && !pathname.includes('/schedule') && !pathname.includes('/attendance')
     }
-    if (href === '/supervisor/guards') {
+    if (item.label === 'Guards') {
       return pathname === '/supervisor/guards'
     }
-    if (href === '/supervisor/leaves') {
+    if (item.label === 'Leaves') {
       return pathname === '/supervisor/leaves'
     }
-    if (href.includes('/schedule')) {
+    if (item.label === 'Schedule') {
       return pathname.includes('/schedule')
     }
-    if (href.includes('/attendance')) {
+    if (item.label === 'Attendance') {
       return pathname.includes('/attendance')
     }
     return false
@@ -72,7 +110,7 @@ export default function SupervisorSidebar() {
       <nav className={`space-y-2 px-3 ${isCollapsed ? '' : 'px-6'}`}>
         {navItems.map((item) => {
           const Icon = item.icon
-          const active = isActive(item.href)
+          const active = isActive(item)
           return (
             <Link
               key={item.label}

@@ -24,6 +24,31 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
+## Airtable Employee API
+
+Managers can pull all employee records from Airtable through:
+
+```txt
+GET /api/airtable/employees
+```
+
+Set these environment variables locally and in Vercel:
+
+```txt
+AIRTABLE_API_KEY=pat...
+AIRTABLE_BASE_ID=app...
+AIRTABLE_EMPLOYEES_TABLE=Employees
+```
+
+Optional variables:
+
+```txt
+AIRTABLE_EMPLOYEES_VIEW=Active Employees
+AIRTABLE_EMPLOYEES_FIELDS=Employee Code,Full Name,Role,Status,Email,Phone
+```
+
+The API paginates through Airtable until every employee record is returned. It keeps the raw Airtable `fields` object and also normalizes common fields like `employeeCode`, `fullName`, `role`, `status`, `email`, and `phone`.
+
 ## Learn More
 
 To learn more, take a look at the following resources:
